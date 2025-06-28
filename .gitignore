@@ -1,0 +1,25 @@
+/target/
+
+# Incremental build files can be generated in the project root.
+.cargo/
+
+# Local environment configuration file (often used for secrets)
+# Should never be committed to version control.
+.env
+
+# Toolchains
+rust-toolchain
+rust-toolchain.toml
+
+# Editor/IDE-specific files
+.idea/
+.vscode/
+*.swp
+*~
+
+# Operating System specific files
+# macOS
+.DS_Store
+
+# Log files
+*.log

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Croner - Rust Cron Expression Tester</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .loader {
+            border-top-color: #3498db;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+        @-webkit-keyframes spinner { 0% { -webkit-transform: rotate(0deg); } 100% { -webkit-transform: rotate(360deg); } }
+        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-2xl bg-gray-800 rounded-xl shadow-2xl p-6 md:p-8 space-y-6">
+        
+        <div class="text-center">
+            <h1 class="text-3xl font-bold text-white">Croner Expression Tester</h1>
+            <p class="text-gray-400 mt-2">Enter a cron expression to see its schedule and description.</p>
+        </div>
+
+        <form id="cron-form" class="space-y-4">
+            <div>
+                <label for="cron-input" class="block text-sm font-medium text-gray-300 mb-2">Cron Expression</label>
+                <input type="text" id="cron-input" name="expression"
+                       class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                       placeholder="e.g., 0 */5 * * * *" value="0 * * * * *">
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Parser Options</label>
+                    <div class="space-y-2">
+                        <div class="flex items-center">
+                            <input id="dom-dow-checkbox" type="checkbox" class="h-4 w-4 rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500">
+                            <label for="dom-dow-checkbox" class="ml-2 text-sm text-gray-300">DOM and DOW must both match</label>
+                        </div>
+                        <fieldset class="mt-2">
+                            <legend class="text-sm font-medium text-gray-300">Seconds Field</legend>
+                            <div class="flex items-center gap-4 mt-1">
+                                <label><input type="radio" name="seconds" value="required" class="mr-1">Required</label>
+                                <label><input type="radio" name="seconds" value="optional" class="mr-1" checked>Optional</label>
+                                <label><input type="radio" name="seconds" value="disabled" class="mr-1">Disabled</label>
+                            </div>
+                        </fieldset>
+                    </div>
+                </div>
+                <div>
+                     <label for="lang-select" class="block text-sm font-medium text-gray-300 mb-2">Description Language</label>
+                     <select id="lang-select" class="w-full bg-gray-700 border-gray-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500">
+                        <option value="en">English</option>
+                        <option value="sv">Swedish</option>
+                     </select>
+                </div>
+            </div>
+
+            <button type="submit" id="submit-button"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-transform transform hover:scale-102 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-500">
+                Test Expression
+            </button>
+        </form>
+        
+        <div id="results-container" class="space-y-4 pt-4 border-t border-gray-700 hidden">
+            <div id="loader" class="hidden w-8 h-8 mx-auto rounded-full border-4 border-gray-600 loader"></div>
+            <div id="error-message" class="hidden p-4 bg-red-900/50 border border-red-700 text-red-300 rounded-lg"></div>
+
+            <div>
+                <h2 class="text-xl font-semibold text-white">Description</h2>
+                <p id="description-text" class="mt-2 text-gray-300 bg-gray-900/50 p-4 rounded-lg font-medium italic"></p>
+            </div>
+
+            <div>
+                <h2 class="text-xl font-semibold text-white">Next Occurrences</h2>
+                <ul id="occurrences-list" class="mt-2 space-y-2 text-gray-300 bg-gray-900/50 p-4 rounded-lg"></ul>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const form = document.getElementById('cron-form');
+        const input = document.getElementById('cron-input');
+        const domDowCheckbox = document.getElementById('dom-dow-checkbox');
+        const langSelect = document.getElementById('lang-select');
+        
+        const resultsContainer = document.getElementById('results-container');
+        const loader = document.getElementById('loader');
+        const errorMessage = document.getElementById('error-message');
+        const descriptionText = document.getElementById('description-text');
+        const occurrencesList = document.getElementById('occurrences-list');
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            
+            const expression = input.value.trim();
+            const domAndDow = domDowCheckbox.checked;
+            const secondsHandling = document.querySelector('input[name="seconds"]:checked').value;
+            const language = langSelect.value;
+            
+            if (!expression) {
+                showError('Cron expression cannot be empty.');
+                return;
+            }
+            
+            await fetchCronData(expression, { domAndDow, secondsHandling, language });
+        });
+        
+        async function fetchCronData(expression, options) {
+            clearResults();
+            showLoader();
+            
+            const params = new URLSearchParams({
+                expression: expression,
+                dom_and_dow: options.domAndDow,
+                seconds: options.secondsHandling,
+                lang: options.language
+            });
+
+            // The API is now at /api/test
+            const apiUrl = `api/test?${params.toString()}`;
+
+            try {
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showError(data.warnings[0] || `Error: ${response.statusText}`);
+                } else {
+                    renderDescription(data.description);
+                    renderOccurrences(data.occurrences);
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+                showError('Failed to connect to the backend. Is the server running?');
+            } finally {
+                hideLoader();
+            }
+        }
+
+        function showLoader() { /* ... unchanged ... */ }
+        function hideLoader() { /* ... unchanged ... */ }
+        function showError(message) { /* ... unchanged ... */ }
+        function clearResults() {
+            errorMessage.classList.add('hidden');
+            descriptionText.textContent = '';
+            occurrencesList.innerHTML = '';
+        }
+        function renderDescription(text) {
+             descriptionText.textContent = text;
+        }
+        function renderOccurrences(items) {
+            if (items.length === 0) {
+                occurrencesList.innerHTML = '<li class="text-gray-500">No occurrences found.</li>';
+                return;
+            }
+            occurrencesList.innerHTML = items.map(item => `<li><code class="bg-gray-700/50 rounded px-2 py-1">${item}</code></li>`).join('');
+        }
+        
+        // Helper functions to copy into the script tag
+        function showLoader() {
+            resultsContainer.classList.remove('hidden');
+            loader.classList.remove('hidden');
+            form.querySelector('button').disabled = true;
+            form.querySelector('button').classList.add('opacity-50', 'cursor-not-allowed');
+        }
+
+        function hideLoader() {
+            loader.classList.add('hidden');
+            form.querySelector('button').disabled = false;
+            form.querySelector('button').classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
