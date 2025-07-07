@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Croner - Rust Cron Expression Tester</title>
+    <title>Cron Expression Builder & Tester</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,107 +12,399 @@
         body { font-family: 'Inter', sans-serif; }
         .loader {
             border-top-color: #3498db;
-            -webkit-animation: spinner 1.5s linear infinite;
             animation: spinner 1.5s linear infinite;
         }
-        @-webkit-keyframes spinner { 0% { -webkit-transform: rotate(0deg); } 100% { -webkit-transform: rotate(360deg); } }
         @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Tooltip Styles */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+        }
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            width: 220px;
+            background-color: #111827; /* bg-gray-900 */
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 10;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -110px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.75rem;
+            line-height: 1.2;
+            border: 1px solid #4b5563; /* border-gray-600 */
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-200 flex items-center justify-center min-h-screen p-4">
+<body class="bg-gray-900 text-gray-200">
 
-    <div class="w-full max-w-2xl bg-gray-800 rounded-xl shadow-2xl p-6 md:p-8 space-y-6">
-        
-        <div class="text-center">
-            <h1 class="text-3xl font-bold text-white">Croner Expression Tester</h1>
-            <p class="text-gray-400 mt-2">Enter a cron expression to see its schedule and description.</p>
+    <div class="w-full max-w-7xl mx-auto p-4 md:p-8">
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-white">Cron Expression Builder & Tester</h1>
+            <p class="text-gray-400 mt-2">Interactively build and test cron expressions. Compliant with the latest <a href="https://github.com/open-source-cron/ocps" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">OCPS</a> draft specification.</p>
+             <div class="text-center text-xs text-gray-500 pt-4">
+                Powered by 
+                <a href="https://github.com/hexagon/croner-rust" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">
+                    croner-rust
+                </a>
+            </div>
         </div>
 
-        <form id="cron-form" class="space-y-4">
-            <div>
-                <label for="cron-input" class="block text-sm font-medium text-gray-300 mb-2">Cron Expression</label>
-                <input type="text" id="cron-input" name="expression"
-                       class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                       placeholder="e.g., 0 */5 * * * *" value="0 * * * * *">
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                <div>
-                    <label class="block text-sm font-medium text-gray-300 mb-2">Parser Options</label>
-                    <div class="space-y-2">
-                        <div class="flex items-center">
-                            <input id="dom-dow-checkbox" type="checkbox" class="h-4 w-4 rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500">
-                            <label for="dom-dow-checkbox" class="ml-2 text-sm text-gray-300">DOM and DOW must both match</label>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Builder Section -->
+            <div class="bg-gray-800 rounded-xl shadow-2xl p-6 space-y-6">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-white">Builder</h2>
+                    <div class="flex items-center gap-4">
+                        <div class="tooltip">
+                            <label for="ocps-version" class="text-sm font-medium text-gray-300 mr-2">OCPS Version:</label>
+                            <span class="tooltip-text">Select the Open Cron Pattern Specification version to enable corresponding features.</span>
                         </div>
-                        <fieldset class="mt-2">
-                            <legend class="text-sm font-medium text-gray-300">Seconds Field</legend>
-                            <div class="flex items-center gap-4 mt-1">
-                                <label><input type="radio" name="seconds" value="required" class="mr-1">Required</label>
-                                <label><input type="radio" name="seconds" value="optional" class="mr-1" checked>Optional</label>
-                                <label><input type="radio" name="seconds" value="disabled" class="mr-1">Disabled</label>
-                            </div>
-                        </fieldset>
+                        <select id="ocps-version" class="bg-gray-700 border-gray-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500">
+                            <option value="1.0">1.0 (Baseline)</option>
+                            <option value="1.1">1.1 (Nicknames)</option>
+                            <option value="1.2">1.2 (Seconds/Year)</option>
+                            <option value="1.3">1.3 (L, W, #)</option>
+                            <option value="1.4" selected>1.4 (w/ AND Logic)</option>
+                        </select>
+                         <button type="button" id="reset-builder-button" class="bg-gray-600 hover:bg-gray-700 text-white text-xs font-semibold py-2 px-3 rounded-lg">Reset</button>
                     </div>
                 </div>
-                <div>
-                     <label for="lang-select" class="block text-sm font-medium text-gray-300 mb-2">Description Language</label>
-                     <select id="lang-select" class="w-full bg-gray-700 border-gray-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500">
-                        <option value="en">English</option>
-                        <option value="sv">Swedish</option>
-                     </select>
+
+                <!-- Fields -->
+                <fieldset id="builder-fieldset" class="space-y-4">
+                    <!-- Nicknames (OCPS 1.1+) -->
+                    <div id="nicknames-field" class="hidden">
+                         <div class="tooltip">
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Nicknames</label>
+                            <span class="tooltip-text">Use common schedule nicknames as a shortcut. Selecting one will override other fields.</span>
+                        </div>
+                        <select id="nickname-select" class="w-full bg-gray-700 border-gray-600 rounded-md p-2 text-sm">
+                            <option value="">(custom)</option>
+                            <option value="@yearly">@yearly</option>
+                            <option value="@monthly">@monthly</option>
+                            <option value="@weekly">@weekly</option>
+                            <option value="@daily">@daily</option>
+                            <option value="@hourly">@hourly</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Time Fields -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div id="seconds-field" class="hidden">
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Seconds (0-59)</label>
+                            <input type="text" id="seconds-input" data-field="seconds" class="w-full bg-gray-900 border-gray-700 rounded-lg p-2" placeholder="*">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Minutes (0-59)</label>
+                            <input type="text" id="minutes-input" data-field="minutes" class="w-full bg-gray-900 border-gray-700 rounded-lg p-2" placeholder="*" value="*">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Hours (0-23)</label>
+                            <input type="text" id="hours-input" data-field="hours" class="w-full bg-gray-900 border-gray-700 rounded-lg p-2" placeholder="*" value="*">
+                        </div>
+                    </div>
+
+                    <!-- Date Fields -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Day of Month (1-31)</label>
+                            <input type="text" id="dom-input" data-field="dom" class="w-full bg-gray-900 border-gray-700 rounded-lg p-2" placeholder="*" value="*">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Month (1-12)</label>
+                            <input type="text" id="month-input" data-field="month" class="w-full bg-gray-900 border-gray-700 rounded-lg p-2" placeholder="*" value="*">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Day of Week (0-6)</label>
+                            <input type="text" id="dow-input" data-field="dow" class="w-full bg-gray-900 border-gray-700 rounded-lg p-2" placeholder="*" value="*">
+                        </div>
+                    </div>
+                     <div id="year-field" class="hidden">
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Year</label>
+                        <input type="text" id="year-input" data-field="year" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2" placeholder="*">
+                    </div>
+
+                    <!-- Special Characters (OCPS 1.3+) -->
+                    <div id="special-chars-field" class="hidden space-y-2">
+                        <h3 class="text-lg font-semibold">Special Characters</h3>
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                            <div class="tooltip">
+                                <label><input type="checkbox" id="last-dom-checkbox" class="mr-1"> Last day of month (L)</label>
+                                <span class="tooltip-text">The 'L' character in the Day of Month field stands for the "last" day of the month.</span>
+                            </div>
+                            <div class="tooltip">
+                                <label><input type="checkbox" id="last-dow-checkbox" class="mr-1"> Last day of week (L)</label>
+                                 <span class="tooltip-text">When used in the Day of Week field, 'L' specifies the last occurrence of that weekday in the month. E.g., '5L' means the last Friday.</span>
+                           </div>
+                            <div class="tooltip">
+                                <label class="flex items-center"><input type="text" id="closest-weekday-input" class="w-12 bg-gray-900 border-gray-700 rounded p-1 mr-1"> W</label>
+                                <span class="tooltip-text">The 'W' character specifies the weekday (Mon-Fri) nearest the given day. E.g., '15W' means the nearest weekday to the 15th of the month.</span>
+                            </div>
+                             <div class="tooltip">
+                                <label class="flex items-center"><input type="text" id="nth-dow-input" class="w-12 bg-gray-900 border-gray-700 rounded p-1 mr-1"> #</label>
+                                <span class="tooltip-text">The '#' character is used to specify the "nth" weekday of the month. E.g., 'TUE#3' means the third Tuesday of the month.</span>
+                            </div>
+                        </div>
+                    </div>
+                </fieldset>
+            </div>
+
+            <!-- Tester Section -->
+            <div class="bg-gray-800 rounded-xl shadow-2xl p-6 space-y-6">
+                <h2 class="text-2xl font-bold text-white">Tester</h2>
+                <form id="cron-form" class="space-y-4">
+                    <div>
+                        <label for="cron-input" class="block text-sm font-medium text-gray-300 mb-2">Cron Expression</label>
+                        <input type="text" id="cron-input" name="expression"
+                               class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg p-3 font-mono"
+                               placeholder="Build an expression on the left or type here" value="* * * * *">
+                        <p id="builder-lock-note" class="text-xs text-gray-500 mt-1 hidden">Builder is locked. Press "Reset" to use it again.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Parser Options</label>
+                            <div class="space-y-2">
+                                <div class="tooltip">
+                                    <div class="flex items-center">
+                                        <input id="dom-dow-checkbox" type="checkbox" class="h-4 w-4 rounded bg-gray-700 border-gray-600 text-blue-600">
+                                        <label for="dom-dow-checkbox" class="ml-2 text-sm text-gray-300">DOM and DOW must both match</label>
+                                    </div>
+                                    <span class="tooltip-text">If checked, both Day of Month and Day of Week must be true for the pattern to match. Default is OR logic. (OCPS 1.4+)</span>
+                                </div>
+                                <div class="tooltip">
+                                    <div class="flex items-center">
+                                        <input id="alternative-weekdays-checkbox" type="checkbox" class="h-4 w-4 rounded bg-gray-700 border-gray-600 text-blue-600">
+                                        <label for="alternative-weekdays-checkbox" class="ml-2 text-sm text-gray-300">Alternative Weekdays</label>
+                                    </div>
+                                    <span class="tooltip-text">Use non-standard "Quartz" weekdays where 1=Sunday and 7=Saturday. Default is 0=Sunday and 6=Saturday.</span>
+                                </div>
+                                <fieldset class="mt-2" id="seconds-option-fieldset" style="display: none;">
+                                    <legend class="text-sm font-medium text-gray-300">Seconds Field</legend>
+                                    <div class="flex items-center gap-4 mt-1">
+                                        <label><input type="radio" name="seconds" value="required" class="mr-1">Required</label>
+                                        <label><input type="radio" name="seconds" value="optional" class="mr-1" checked>Optional</label>
+                                        <label><input type="radio" name="seconds" value="disabled" class="mr-1">Disabled</label>
+                                    </div>
+                                </fieldset>
+                                <fieldset class="mt-2" id="year-option-fieldset" style="display: none;">
+                                    <legend class="text-sm font-medium text-gray-300">Year Field</legend>
+                                    <div class="flex items-center gap-4 mt-1">
+                                        <label><input type="radio" name="year" value="required" class="mr-1">Required</label>
+                                        <label><input type="radio" name="year" value="optional" class="mr-1" checked>Optional</label>
+                                        <label><input type="radio" name="year" value="disabled" class="mr-1">Disabled</label>
+                                    </div>
+                                </fieldset>
+                            </div>
+                        </div>
+                        <div>
+                             <label for="lang-select" class="block text-sm font-medium text-gray-300 mb-2">Description Language</label>
+                             <select id="lang-select" class="w-full bg-gray-700 border-gray-600 rounded-md p-2 text-sm">
+                                <option value="en">English</option>
+                                <option value="sv">Swedish</option>
+                             </select>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="submit-button"
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-transform transform hover:scale-102">
+                        Test Expression
+                    </button>
+                </form>
+                
+                <div id="results-container" class="space-y-4 pt-4 border-t border-gray-700 hidden">
+                    <div id="loader" class="hidden w-8 h-8 mx-auto rounded-full border-4 border-gray-600 loader"></div>
+                    <div id="error-message" class="hidden p-4 bg-red-900/50 border border-red-700 text-red-300 rounded-lg"></div>
+
+                    <div>
+                        <h2 class="text-xl font-semibold text-white">Description</h2>
+                        <p id="description-text" class="mt-2 text-gray-300 bg-gray-900/50 p-4 rounded-lg font-medium italic"></p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <h2 class="text-xl font-semibold text-white">Next Occurrences</h2>
+                            <ul id="occurrences-list" class="mt-2 space-y-2 text-gray-300 bg-gray-900/50 p-4 rounded-lg"></ul>
+                        </div>
+                        <div>
+                            <h2 class="text-xl font-semibold text-white">Previous Occurrences</h2>
+                            <ul id="previous-occurrences-list" class="mt-2 space-y-2 text-gray-300 bg-gray-900/50 p-4 rounded-lg"></ul>
+                        </div>
+                    </div>
                 </div>
             </div>
-
-            <button type="submit" id="submit-button"
-                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-transform transform hover:scale-102 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-500">
-                Test Expression
-            </button>
-        </form>
-        
-        <div id="results-container" class="space-y-4 pt-4 border-t border-gray-700 hidden">
-            <div id="loader" class="hidden w-8 h-8 mx-auto rounded-full border-4 border-gray-600 loader"></div>
-            <div id="error-message" class="hidden p-4 bg-red-900/50 border border-red-700 text-red-300 rounded-lg"></div>
-
-            <div>
-                <h2 class="text-xl font-semibold text-white">Description</h2>
-                <p id="description-text" class="mt-2 text-gray-300 bg-gray-900/50 p-4 rounded-lg font-medium italic"></p>
-            </div>
-
-            <div>
-                <h2 class="text-xl font-semibold text-white">Next Occurrences</h2>
-                <ul id="occurrences-list" class="mt-2 space-y-2 text-gray-300 bg-gray-900/50 p-4 rounded-lg"></ul>
-            </div>
         </div>
-
     </div>
 
     <script>
+        // --- DOM Elements ---
+        const ocpsVersionSelect = document.getElementById('ocps-version');
+        const builderFieldset = document.getElementById('builder-fieldset');
+        const cronInput = document.getElementById('cron-input');
         const form = document.getElementById('cron-form');
-        const input = document.getElementById('cron-input');
-        const domDowCheckbox = document.getElementById('dom-dow-checkbox');
-        const langSelect = document.getElementById('lang-select');
+        const resetBuilderButton = document.getElementById('reset-builder-button');
+        const builderLockNote = document.getElementById('builder-lock-note');
         
+        // Builder Inputs
+        const nicknameSelect = document.getElementById('nickname-select');
+        const builderInputs = {
+            seconds: document.getElementById('seconds-input'),
+            minutes: document.getElementById('minutes-input'),
+            hours: document.getElementById('hours-input'),
+            dom: document.getElementById('dom-input'),
+            month: document.getElementById('month-input'),
+            dow: document.getElementById('dow-input'),
+            year: document.getElementById('year-input'),
+        };
+        const lastDomCheckbox = document.getElementById('last-dom-checkbox');
+        const lastDowCheckbox = document.getElementById('last-dow-checkbox');
+        const closestWeekdayInput = document.getElementById('closest-weekday-input');
+        const nthDowInput = document.getElementById('nth-dow-input');
+        
+        // Tester Options
+        const domDowCheckbox = document.getElementById('dom-dow-checkbox');
+        const alternativeWeekdaysCheckbox = document.getElementById('alternative-weekdays-checkbox');
+        const langSelect = document.getElementById('lang-select');
+
+        // Results
         const resultsContainer = document.getElementById('results-container');
         const loader = document.getElementById('loader');
         const errorMessage = document.getElementById('error-message');
         const descriptionText = document.getElementById('description-text');
         const occurrencesList = document.getElementById('occurrences-list');
+        const previousOccurrencesList = document.getElementById('previous-occurrences-list');
 
-        form.addEventListener('submit', async (event) => {
+        let isCustomExpression = false;
+
+        // --- Event Listeners ---
+        ocpsVersionSelect.addEventListener('change', updateBuilderUI);
+        form.addEventListener('submit', handleFormSubmit);
+        resetBuilderButton.addEventListener('click', resetBuilder);
+        cronInput.addEventListener('input', () => {
+            isCustomExpression = true;
+            builderFieldset.disabled = true;
+            builderFieldset.classList.add('opacity-50', 'cursor-not-allowed');
+            builderLockNote.classList.remove('hidden');
+        });
+        
+        // Add listeners to all builder inputs to update the cron string
+        Object.values(builderInputs).forEach(input => input.addEventListener('input', buildCronString));
+        [nicknameSelect, lastDomCheckbox, lastDowCheckbox, closestWeekdayInput, nthDowInput].forEach(el => {
+            el.addEventListener('change', buildCronString);
+            el.addEventListener('input', buildCronString);
+        });
+
+        // --- Functions ---
+        
+        function resetBuilder() {
+            isCustomExpression = false;
+            builderFieldset.disabled = false;
+            builderFieldset.classList.remove('opacity-50', 'cursor-not-allowed');
+            builderLockNote.classList.add('hidden');
+
+            nicknameSelect.value = '';
+            Object.values(builderInputs).forEach(input => input.value = '');
+            builderInputs.minutes.value = '*';
+            builderInputs.hours.value = '*';
+            builderInputs.dom.value = '*';
+            builderInputs.month.value = '*';
+            builderInputs.dow.value = '*';
+            
+            lastDomCheckbox.checked = false;
+            lastDowCheckbox.checked = false;
+            closestWeekdayInput.value = '';
+            nthDowInput.value = '';
+            
+            buildCronString();
+        }
+
+        function updateBuilderUI() {
+            const version = parseFloat(ocpsVersionSelect.value);
+            
+            document.getElementById('nicknames-field').style.display = version >= 1.1 ? 'block' : 'none';
+            document.getElementById('seconds-field').style.display = version >= 1.2 ? 'block' : 'none';
+            document.getElementById('year-field').style.display = version >= 1.2 ? 'block' : 'none';
+            document.getElementById('seconds-option-fieldset').style.display = version >= 1.2 ? 'block' : 'none';
+            document.getElementById('year-option-fieldset').style.display = version >= 1.2 ? 'block' : 'none';
+            document.getElementById('special-chars-field').style.display = version >= 1.3 ? 'block' : 'none';
+            
+            domDowCheckbox.disabled = version < 1.4;
+            if (version < 1.4) {
+                 domDowCheckbox.checked = false;
+            }
+
+            resetBuilder();
+        }
+
+        function buildCronString() {
+            if (isCustomExpression) return;
+
+            if (nicknameSelect.value) {
+                cronInput.value = nicknameSelect.value;
+                return;
+            }
+
+            const version = parseFloat(ocpsVersionSelect.value);
+            let parts = [];
+
+            if (version >= 1.2) parts.push(builderInputs.seconds.value || '*');
+            parts.push(builderInputs.minutes.value || '*');
+            parts.push(builderInputs.hours.value || '*');
+
+            let domPart = builderInputs.dom.value || '*';
+            if (version >= 1.3) {
+                if (lastDomCheckbox.checked) domPart = 'L';
+                if (closestWeekdayInput.value) domPart = `${closestWeekdayInput.value}W`;
+            }
+            parts.push(domPart);
+
+            parts.push(builderInputs.month.value || '*');
+
+            let dowPart = builderInputs.dow.value || '*';
+             if (version >= 1.3) {
+                if (lastDowCheckbox.checked) dowPart += 'L';
+                if (nthDowInput.value) dowPart += `#${nthDowInput.value}`;
+            }
+            parts.push(dowPart);
+
+            if (version >= 1.2) parts.push(builderInputs.year.value || '*');
+
+            cronInput.value = parts.join(' ');
+        }
+
+        async function handleFormSubmit(event) {
             event.preventDefault();
             
-            const expression = input.value.trim();
-            const domAndDow = domDowCheckbox.checked;
-            const secondsHandling = document.querySelector('input[name="seconds"]:checked').value;
-            const language = langSelect.value;
-            
+            const expression = cronInput.value.trim();
             if (!expression) {
                 showError('Cron expression cannot be empty.');
                 return;
             }
             
-            await fetchCronData(expression, { domAndDow, secondsHandling, language });
-        });
+            const version = parseFloat(ocpsVersionSelect.value);
+            const options = {
+                domAndDow: domDowCheckbox.checked,
+                alternativeWeekdays: alternativeWeekdaysCheckbox.checked,
+                secondsHandling: version >= 1.2 ? document.querySelector('input[name="seconds"]:checked').value : 'disabled',
+                yearHandling: version >= 1.2 ? document.querySelector('input[name="year"]:checked').value : 'disabled',
+                language: langSelect.value
+            };
+            
+            await fetchCronData(expression, options);
+        }
         
         async function fetchCronData(expression, options) {
             clearResults();
@@ -121,22 +413,24 @@
             const params = new URLSearchParams({
                 expression: expression,
                 dom_and_dow: options.domAndDow,
+                alternative_weekdays: options.alternativeWeekdays,
                 seconds: options.secondsHandling,
+                year: options.yearHandling,
                 lang: options.language
             });
 
-            // The API is now at /api/test
-            const apiUrl = `api/test?${params.toString()}`;
+            const apiUrl = `/api/test?${params.toString()}`;
 
             try {
                 const response = await fetch(apiUrl);
                 const data = await response.json();
 
                 if (!response.ok) {
-                    showError(data.warnings[0] || `Error: ${response.statusText}`);
+                    showError(data.warnings ? data.warnings[0] : `Error: ${response.statusText}`);
                 } else {
                     renderDescription(data.description);
-                    renderOccurrences(data.occurrences);
+                    renderOccurrences(data.occurrences, 'occurrences-list', 'No future occurrences found.');
+                    renderOccurrences(data.previous_occurrences, 'previous-occurrences-list', 'No previous occurrences found.');
                 }
             } catch (error) {
                 console.error('Fetch error:', error);
@@ -146,43 +440,48 @@
             }
         }
 
-        function showLoader() { /* ... unchanged ... */ }
-        function hideLoader() { /* ... unchanged ... */ }
-        function showError(message) { /* ... unchanged ... */ }
-        function clearResults() {
-            errorMessage.classList.add('hidden');
-            descriptionText.textContent = '';
-            occurrencesList.innerHTML = '';
-        }
-        function renderDescription(text) {
-             descriptionText.textContent = text;
-        }
-        function renderOccurrences(items) {
-            if (items.length === 0) {
-                occurrencesList.innerHTML = '<li class="text-gray-500">No occurrences found.</li>';
-                return;
-            }
-            occurrencesList.innerHTML = items.map(item => `<li><code class="bg-gray-700/50 rounded px-2 py-1">${item}</code></li>`).join('');
-        }
-        
-        // Helper functions to copy into the script tag
         function showLoader() {
             resultsContainer.classList.remove('hidden');
             loader.classList.remove('hidden');
-            form.querySelector('button').disabled = true;
-            form.querySelector('button').classList.add('opacity-50', 'cursor-not-allowed');
+            document.getElementById('submit-button').disabled = true;
+            document.getElementById('submit-button').classList.add('opacity-50', 'cursor-not-allowed');
         }
 
         function hideLoader() {
             loader.classList.add('hidden');
-            form.querySelector('button').disabled = false;
-            form.querySelector('button').classList.remove('opacity-50', 'cursor-not-allowed');
+            document.getElementById('submit-button').disabled = false;
+            document.getElementById('submit-button').classList.remove('opacity-50', 'cursor-not-allowed');
         }
 
         function showError(message) {
+            resultsContainer.classList.remove('hidden');
             errorMessage.textContent = message;
             errorMessage.classList.remove('hidden');
         }
+
+        function clearResults() {
+            errorMessage.classList.add('hidden');
+            descriptionText.textContent = '';
+            occurrencesList.innerHTML = '';
+            previousOccurrencesList.innerHTML = '';
+        }
+
+        function renderDescription(text) {
+             descriptionText.textContent = text;
+        }
+
+        function renderOccurrences(items, listId, emptyMessage) {
+            const list = document.getElementById(listId);
+            if (!items || items.length === 0) {
+                list.innerHTML = `<li class="text-gray-500">${emptyMessage}</li>`;
+                return;
+            }
+            list.innerHTML = items.map(item => `<li><code class="bg-gray-700/50 rounded px-2 py-1">${item}</code></li>`).join('');
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            updateBuilderUI();
+        });
     </script>
 </body>
 </html>

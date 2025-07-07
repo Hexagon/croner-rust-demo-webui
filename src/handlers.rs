@@ -3,25 +3,37 @@ use crate::models::{ApiResponse, CronQuery};
 use axum::{extract::Query, http::StatusCode, response::IntoResponse, Json};
 use chrono::Local;
 use croner::describe::lang::swedish::Swedish;
-use croner::Cron;
+use croner::parser::{CronParser, Seconds, Year};
 
 /// Handles incoming requests to the `/api/test` endpoint for cron evaluation.
 pub async fn test_cron_handler(Query(query): Query<CronQuery>) -> impl IntoResponse {
-    // 1. Create a Cron instance with the specified options
-    let mut cron = Cron::new(&query.expression);
+    // 1. Create a CronParser builder and configure it
+    let mut builder = CronParser::builder();
 
-    match query.seconds.as_str() {
-        "optional" => cron.with_seconds_optional(),
-        "required" => cron.with_seconds_required(),
-        _ => &mut cron, // "disabled", do nothing
-    };
+    builder = builder.seconds(match query.seconds.as_str() {
+        "optional" => Seconds::Optional,
+        "required" => Seconds::Required,
+        _ => Seconds::Disallowed,
+    });
+
+    builder = builder.year(match query.year.as_str() {
+        "optional" => Year::Optional,
+        "required" => Year::Required,
+        _ => Year::Disallowed,
+    });
 
     if query.dom_and_dow {
-        cron.with_dom_and_dow();
+        builder = builder.dom_and_dow(true);
     }
 
+    if query.alternative_weekdays {
+        builder = builder.alternative_weekdays(true);
+    }
+
+    let parser = builder.build();
+
     // 2. Try to parse the expression
-    let parsed_cron = match cron.parse() {
+    let parsed_cron = match parser.parse(&query.expression) {
         Ok(c) => c,
         Err(e) => {
             let error_message = format!("Invalid cron expression: {}", e);
@@ -29,6 +41,7 @@ pub async fn test_cron_handler(Query(query): Query<CronQuery>) -> impl IntoRespo
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse {
                     occurrences: vec![],
+                    previous_occurrences: vec![],
                     description: "".to_string(),
                     warnings: vec![error_message],
                 }),
@@ -38,8 +51,15 @@ pub async fn test_cron_handler(Query(query): Query<CronQuery>) -> impl IntoRespo
     };
 
     // 3. Generate occurrences
+    let now = Local::now();
     let occurrences: Vec<String> = parsed_cron
-        .iter_from(Local::now())
+        .iter_after(now)
+        .take(5)
+        .map(|dt| dt.to_string())
+        .collect();
+
+    let previous_occurrences: Vec<String> = parsed_cron
+        .iter_before(now)
         .take(5)
         .map(|dt| dt.to_string())
         .collect();
@@ -55,6 +75,7 @@ pub async fn test_cron_handler(Query(query): Query<CronQuery>) -> impl IntoRespo
         StatusCode::OK,
         Json(ApiResponse {
             occurrences,
+            previous_occurrences,
             description,
             warnings: vec![], // For simplicity, warnings are not implemented in this demo
         }),
